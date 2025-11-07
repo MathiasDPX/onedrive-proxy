@@ -1,16 +1,39 @@
 from azure.identity import DeviceCodeCredential
 from typing import List
 import requests
-import os
+import json
+
+def _convert_path(path):
+    return path.replace("/drive/root:", "/")
+
+def dump(data):
+    with open("test.json", "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
 class File:
-    def __init__(self, name, id, mimetype, size, path, parent_id):
+    def __init__(self, name, id, size, path, parent_id, is_folder):
         self.name = name
         self.id = id
-        self.mimetype = mimetype
         self.size = size
         self.path = path
         self.parent_id = parent_id
+        self.is_folder = is_folder
+
+    @classmethod
+    def from_request(cls, data):
+        if data.get("folder", None) == None:
+            is_folder = False
+        else:
+            is_folder = True
+
+        return cls(
+            data["name"],
+            data["id"],
+            data["size"],
+            _convert_path(data["parentReference"]["path"]),
+            data["parentReference"]["id"],
+            is_folder
+        )
 
 class Client:
     def __init__(self,
@@ -26,7 +49,7 @@ class Client:
         self._graph_base = graph_base
         self._session = requests.session()
 
-    def _devicecode_credential(self):
+    def devicecode_login(self):
         credential = DeviceCodeCredential(self.client_id, tenant_id=self.tenant_id)
         token = credential.get_token(*self.scopes).token
         self._set_token(token)
@@ -35,14 +58,34 @@ class Client:
         _headers = {"Authorization": f"Bearer {token}"}
         self._session.headers = _headers
 
-    def get_content(self, item_id):
+    def get_content(self, item_id) -> bytes:
         url = f"{self._graph_base}/me/drive/items/{item_id}/content"
         return self._session.get(url).content
 
-
-    def get_children(self, item_id="root"):
+    def get_children(self, item_id="root") -> List[File]:
         if item_id == "root":
             url = f"{self._graph_base}/me/drive/root/children"
         else:
             url = f"{self._graph_base}/me/drive/items/{item_id}/children"
-        return self._session.get(url).json()
+
+        resp = self._session.get(url)
+        resp.raise_for_status()
+        data = resp.json()
+        return [File.from_request(file) for file in data.get("value", [])]
+    
+    def get_file_by_id(self, item_id) -> File:
+        url = f"{self._graph_base}/me/drive/items/{item_id}"
+        resp = self._session.get(url)
+        resp.raise_for_status()
+        data = resp.json()
+
+        return File.from_request(data)
+
+
+    def get_file_by_path(self, path) -> File:
+        url = f"{self._graph_base}/me/drive/root:/{path}"
+        resp = self._session.get(url)
+        resp.raise_for_status()
+        data = resp.json()
+
+        return File.from_request(data)
