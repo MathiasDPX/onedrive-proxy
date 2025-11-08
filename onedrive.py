@@ -1,17 +1,11 @@
 from azure.identity import DeviceCodeCredential
 from typing import List
+from utils import *
 import requests
-import json
 
-def _convert_path(path):
-    return path.replace("/drive/root:", "/")
-
-def dump(data):
-    with open("test.json", "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
 
 class File:
-    def __init__(self, name, id, size, path, parent_id, is_folder):
+    def __init__(self, name, id, size, path, parent_id, is_folder, ctime, mtime):
         self.name = name
         self.id = id
         self.size = size
@@ -19,6 +13,8 @@ class File:
         self.parent_id = parent_id
         self.is_folder = is_folder
         self.mimetype = None
+        self.ctime = ctime
+        self.mtime = mtime
 
     @classmethod
     def from_request(cls, data):
@@ -32,9 +28,11 @@ class File:
             data["name"],
             data["id"],
             data.get("size", 0),
-            _convert_path(parent_ref.get("path", "/")),
+            convert_path(parent_ref.get("path", "/"))+"/"+data["name"],
             parent_ref.get("id"),
-            is_folder
+            is_folder,
+            parse_date(data["createdDateTime"]),
+            parse_date(data["lastModifiedDateTime"])
         )
 
         if data.get("file") != None:

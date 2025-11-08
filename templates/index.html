@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<title>onedrive:/{{ path }}</title>
+{% endblock %}
+
+{% block content %}
+<h1>Index of {{ path }}</h1>
+
+<table id="list">
+    <thead>
+        <th>File name</th>
+        <th>File size</th>
+        <th>Created at</th>
+    </thead>
+    <tbody>
+        <tr>
+            {% if request.path != "/" %}
+                {% set parent_url = request.url.rsplit('/', 1)[0] %}
+
+                {% if can_expose %}
+                    {# only add the parent dir link if it's accessible #}
+                    <td><a href="{{ parent_url }}">Parent directory</a></td>
+                    <td>-</td>
+                {% endif %}
+            {% endif %}
+        </tr>
+
+        {% for file in files%}
+            <tr>
+                <td><a href="{{ file.path }}"{% if not file.is_folder %} target="_blank"{% endif %}>{{ file.name }}</a></td>
+                {% if file.is_folder %}
+                    <td>-</td>
+                {% else %}
+                    <td>{{ file.size | human_filesize }}</td>
+                {% endif %}
+                <td>{{ file.ctime | human_timestamp}}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
