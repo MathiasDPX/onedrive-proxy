@@ -18,22 +18,29 @@ class File:
         self.path = path
         self.parent_id = parent_id
         self.is_folder = is_folder
+        self.mimetype = None
 
     @classmethod
     def from_request(cls, data):
+        parent_ref = data.get("parentReference") or {}
         if data.get("folder", None) == None:
             is_folder = False
         else:
             is_folder = True
 
-        return cls(
+        inst = cls(
             data["name"],
             data["id"],
-            data["size"],
-            _convert_path(data["parentReference"]["path"]),
-            data["parentReference"]["id"],
+            data.get("size", 0),
+            _convert_path(parent_ref.get("path", "/")),
+            parent_ref.get("id"),
             is_folder
         )
+
+        if data.get("file") != None:
+            inst.mimetype = data.get("file", {}).get("mimetype", "application/octet-stream")
+
+        return inst
 
 class Client:
     def __init__(self,
@@ -71,6 +78,7 @@ class Client:
         resp = self._session.get(url)
         resp.raise_for_status()
         data = resp.json()
+        
         return [File.from_request(file) for file in data.get("value", [])]
     
     def get_file_by_id(self, item_id) -> File:
@@ -78,7 +86,6 @@ class Client:
         resp = self._session.get(url)
         resp.raise_for_status()
         data = resp.json()
-
         return File.from_request(data)
 
 
@@ -88,4 +95,11 @@ class Client:
         resp.raise_for_status()
         data = resp.json()
 
+        return File.from_request(data)
+
+    def get_root(self) -> File:
+        url = f"{self._graph_base}/me/drive/root"
+        resp = self._session.get(url)
+        resp.raise_for_status()
+        data = resp.json()
         return File.from_request(data)

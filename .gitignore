@@ -1,5 +1,6 @@
 .env
 token_cache.bin
+test.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
