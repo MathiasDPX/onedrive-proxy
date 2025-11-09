@@ -28,7 +28,7 @@ class File:
             data["name"],
             data["id"],
             data.get("size", 0),
-            convert_path(parent_ref.get("path", "/"))+"/"+data["name"],
+            convert_path(parent_ref.get("path", ""))+"/"+data["name"],
             parent_ref.get("id"),
             is_folder,
             parse_date(data["createdDateTime"]),

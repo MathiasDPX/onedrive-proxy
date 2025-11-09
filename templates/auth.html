@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<title>terabox:/login</title>
+{% endblock %}
+
+{% block content %}
+<input type="text" id="username" placeholder="username"><br>
+<input type="text" id="password" placeholder="password"><br>
+<button id="save-btn">Save</button>
+
+<script>
+    function setCookie(name, value, days) {
+        let expires = "";
+        if (days) {
+            const date = new Date();
+            date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+            expires = "; expires=" + date.toUTCString();
+        }
+        document.cookie = name + "=" + value + expires + "; path=/";
+    }
+
+    function getCookie(name) {
+        const nameEQ = name + "=";
+        const ca = document.cookie.split(';');
+        for (let i = 0; i < ca.length; i++) {
+            let c = ca[i];
+            while (c.charAt(0) === ' ') c = c.substring(1, c.length);
+            if (c.indexOf(nameEQ) === 0) {
+                return decodeURIComponent(c.substring(nameEQ.length, c.length));
+            }
+        }
+        return null;
+    }
+
+    // Load them
+    window.addEventListener("DOMContentLoaded", () => {
+        const auth = getCookie("Authorization");
+        if (auth) {
+            const [savedUser, savedPass] = auth.split(":");
+            document.getElementById("username").value = savedUser || "";
+            document.getElementById("password").value = savedPass || "";
+        }
+    });
+
+    // Save when click
+    document.getElementById("save-btn").addEventListener("click", () => {
+        const username = document.getElementById("username").value;
+        const password = document.getElementById("password").value;
+        setCookie("Authorization", `${username}:${password}`, 7); // expire in 7 days
+        alert("Credentials updated!");
+    });
+</script>
+
+{% endblock %}

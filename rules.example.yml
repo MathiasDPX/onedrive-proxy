@@ -1,0 +1,15 @@
+users:
+  joe: "dalton"
+
+groups:
+  admins:
+    - joe
+
+rules:
+  - permit: ALLOW
+    principal: "user:joe"
+    pattern: ".+"
+
+  - permit: ALLOW
+    principal: "group:everyone"
+    pattern: "public\\/[a-zA-Z0-9]+\\.[a-z]"
