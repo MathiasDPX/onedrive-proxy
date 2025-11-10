@@ -1,5 +1,5 @@
 .env
-token_cache.bin
+.token_cache.json
 test.json
 rules.yml
 
