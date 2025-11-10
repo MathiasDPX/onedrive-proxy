@@ -1,4 +1,4 @@
-from flask import Flask, abort, send_file, render_template, request, Response
+from flask import Flask, abort, render_template, request, Response
 from dotenv import load_dotenv
 from utils.whitelist import *
 from utils.onedrive import *
@@ -6,6 +6,7 @@ from utils.formatters import *
 import bcrypt
 import os
 import io
+from functools import lru_cache
 
 load_dotenv()
 
@@ -16,6 +17,7 @@ scopes = ["User.Read", "Files.Read"]
 app = Flask(__name__)
 acl = ACL.from_yaml(open("rules.yml", "r", encoding="utf-8"))
 
+cached_passwords = {}
 client = Client(scopes, client_id, tenant_id)
 
 try:
@@ -34,9 +36,20 @@ app.jinja_env.filters["human_filesize"] = human_filesize
 @app.context_processor
 def inject_globals():
     principal = get_principal()
-    can_expose = acl.can_access(principal, request.path)
+    principal_id = principal.name if hasattr(principal, 'name') else "everyone"
+    can_expose = can_access_cached(principal_id, request.path)
 
     return dict(can_expose=can_expose)
+
+def check_password(password, userpwd):
+    if password in cached_passwords:
+        return password == cached_passwords[password]
+    
+    if bcrypt.checkpw(password.encode(), userpwd.encode()):
+        cached_passwords[password] = password
+        return True
+    else:
+        return False
 
 def get_principal():
     try:
@@ -48,7 +61,7 @@ def get_principal():
         username, password = auth_cookie.split(":", 1)
         user = acl.get_user(username)
 
-        if bcrypt.checkpw(password.encode(), user.password.encode()):
+        if check_password(password, user.password):
             return user
     except:
         pass
@@ -59,11 +72,19 @@ def get_principal():
 def auth():
     return render_template("auth.html")
 
+@lru_cache(maxsize=256)
+def can_access_cached(principal_id: str, path: str):
+    """Cache ACL access decisions to avoid repeated lookups"""
+    principal = acl.get_group(principal_id) if principal_id == "everyone" else acl.get_user(principal_id)
+    return acl.can_access(principal, path)
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def index(path: str):
     principal = get_principal()
-    if not acl.can_access(principal, path):
+    principal_id = principal.name if hasattr(principal, 'name') else "everyone"
+    
+    if not can_access_cached(principal_id, path):
         return abort(403)
 
     try:
@@ -75,8 +96,7 @@ def index(path: str):
         return abort(404)
 
     if file.is_folder:
-        files = [file for file in client.get_children(file.id) if acl.can_access(principal, file.path)]
-
+        files = [file for file in client.get_children(file.id) if can_access_cached(principal_id, file.path)]
         return render_template(
             "index.html",
             path=path,
