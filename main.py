@@ -1,8 +1,8 @@
 from flask import Flask, abort, send_file, render_template, request, Response
 from dotenv import load_dotenv
-from whitelist import *
-from onedrive import *
-from utils import *
+from utils.whitelist import *
+from utils.onedrive import *
+from utils.formatters import *
 import bcrypt
 import os
 import io

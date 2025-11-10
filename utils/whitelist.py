@@ -86,16 +86,19 @@ class ACL:
         if not path.startswith("/"):
             path = "/"+path
 
-        # direct rules (for the principal)
-        for rule in [rule for rule in self.rules if rule.principal == principal]:
+        rules = []
+        
+        for rule in self.rules:
+            if type(principal) == User:
+                if rule.principal in principal.get_groups():
+                    rules.append(rule)
+                    
+            if rule.principal == principal:
+                rules.append(rule)
+                
+        for rule in rules:
             if rule.matches(path):
                 return bool(rule.permit)
-            
-        # indirect rules (for user's groups)
-        if type(principal) == User:
-            for rule in [rule for rule in self.rules if rule.principal in principal.get_groups()]:
-                if rule.matches(path):
-                    return bool(rule.permit)
 
         return False
 

@@ -5,10 +5,6 @@ def parse_date(date:str):
     dt = datetime.fromisoformat(date.replace("Z", "+00:00"))
     return dt
 
-def dump(data):
-    with open("test.json", "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
-
 def convert_path(path):
     return path.replace("/drive/root:", "")
 

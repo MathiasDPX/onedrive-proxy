@@ -1,6 +1,6 @@
 from azure.identity import DeviceCodeCredential
 from typing import List
-from utils import *
+from utils.formatters import *
 import requests
 import json
 import os
