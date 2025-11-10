@@ -1,8 +1,9 @@
-from flask import Flask, abort, send_file, render_template, request
+from flask import Flask, abort, send_file, render_template, request, Response
 from dotenv import load_dotenv
 from whitelist import *
 from onedrive import *
 from utils import *
+import bcrypt
 import os
 import io
 
@@ -47,7 +48,7 @@ def get_principal():
         username, password = auth_cookie.split(":", 1)
         user = acl.get_user(username)
 
-        if user.password == password:
+        if bcrypt.checkpw(password.encode(), user.password.encode()):
             return user
     except:
         pass
@@ -84,12 +85,10 @@ def index(path: str):
     
     else:
         content = io.BytesIO(client.get_content(file.id))
-        return send_file(
-            content,
-            download_name=file.name,
-            mimetype=file.mimetype,
-            as_attachment=True
-        )
+        response = Response(content.getvalue(), mimetype=file.mimetype)
+        response.headers["Content-Disposition"] = f"attachment; filename={file.name}"
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
 
 if __name__ == "__main__":
     app.run()

@@ -1,4 +1,5 @@
 python-dotenv
 msgraph-sdk
+bcrypt
 PyYAML
 Flask
