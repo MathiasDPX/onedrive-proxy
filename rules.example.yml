@@ -1,5 +1,5 @@
 users:
-  joe: "dalton"
+  joe: "bcrypt_password"
 
 groups:
   admins:

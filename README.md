@@ -8,6 +8,7 @@ OneDrive Proxy is a proxy service that allows you to make OneDrive file download
 - Fast & easy to setup
 - ACL-like rights management with users and groups
 - Lightweight web interface for easy usage
+- Dropbox for fast and easy files uploading
 
 ## Setup
 
@@ -15,7 +16,7 @@ There are two config files that you need to modify before running this. The firs
 
 ```yaml
 users:
-  joe: "dalton"
+  joe: "bcrypt_password"
 
 groups:
   admins:
@@ -34,7 +35,7 @@ rules:
 ```
 
 ### Groups
-A group is a collection of multiple users (e.g. `admins`, `archive-team`). There are also special groups like `everyone` which includes all users (logged in or not) and `logged` which includes only authenticated users.
+A group is a collection of multiple users (e.g. `admins`, `archive-team`). There are also special groups like `everyone` which includes all users (logged in or not), `logged` which includes only authenticated users and the `dropbox` group have access to the dropbox
 
 ### Users
 A user is the association of a username (key) and a password (value). On startup, a `logged` group is created which every user is part of. You can login at `/auth`.
