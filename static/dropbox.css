@@ -1,0 +1,67 @@
+/* Original work: https://kali.download */
+
+body,html {
+    background:#fff;
+    font-family:"Bitstream Vera Sans","Lucida Grande","Lucida Sans Unicode",Lucidux,Verdana,Lucida,sans-serif;
+}
+
+h1 {
+    text-align: center;
+}
+
+#upload-status {
+    text-align: center;
+    margin-top: 12px;
+    font-size: 0.95em;
+    color: rgb(17, 170, 119);
+}
+
+.dropzone {
+    max-width: 720px;
+    height: 300px;
+    margin: 2rem auto;
+    border: 3px dashed #cfe1fb;
+    border-radius: 10px;
+    background: #fafafa;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(43,108,176,0.06);
+    transition: border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+    cursor: pointer;
+}
+
+.dropzone:focus,
+.dropzone:hover {
+    border-color: #2b6cb0;
+    background: #ffffff;
+    box-shadow: 0 6px 18px rgba(43,108,176,0.10);
+    outline: none;
+}
+
+.dropzone-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #556;
+    text-align: center;
+}
+
+.upload-icon {
+    width: 64px;
+    height: 64px;
+    color: #2b6cb0;
+    margin-bottom: 0.6rem;
+}
+
+.dropzone-text {
+    margin: 0;
+    font-size: 1.05rem;
+    color: #2e3b4e;
+}
+
+@media (max-width: 480px) {
+    .dropzone { height: 220px; padding: 1rem; }
+    .upload-icon { width: 52px; height: 52px; }
+}

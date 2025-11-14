@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='dropbox.css') }}">
+    <title>onedrive://dropbox</title>
+</head>
+<body>
+    <h1>Dropbox</h1>
+    <div class="dropzone" id="dropzone" tabindex="0">
+        <label for="file-input" class="dropzone-content">
+            <svg class="upload-icon" xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 5 17 10" />
+                <line x1="12" y1="5" x2="12" y2="17" />
+            </svg>
+            <p class="dropzone-text">Drag & drop files here or click to upload</p>
+            <input id="file-input" type="file" name="file" multiple style="display:none"> 
+        </label>
+    </div>
+    <div id="upload-status" aria-live="polite"></div>
+    <script>
+        (function(){
+            const dropzone = document.getElementById('dropzone');
+            const fileInput = document.getElementById('file-input');
+            const statusEl = document.getElementById('upload-status');
+
+            function setStatus(msg, isError){
+                statusEl.textContent = msg;
+                statusEl.style.color = isError ? '#922' : '#1a7';
+            }
+
+            function uploadFiles(files){
+                if(!files || files.length === 0) return;
+                const form = new FormData();
+                for(let i=0;i<files.length;i++){
+                    form.append('file', files[i]);
+                }
+
+                setStatus('Uploading...');
+
+                fetch('/_/upload', {
+                    method: 'POST',
+                    body: form,
+                    credentials: 'same-origin'
+                }).then(async res => {
+                    let data = null;
+                    let text = '';
+                    try {
+                        data = await res.json();
+                    } catch (e) {
+                        try { text = await res.text(); } catch (e2) { text = ''; }
+                    }
+
+                    // If server returns JSON with an `error` boolean
+                    if (data && typeof data === 'object' && Object.prototype.hasOwnProperty.call(data, 'error')) {
+                        if (data.error) {
+                            const msg = data.message || '';
+                            setStatus('Upload failed' + (msg ? (': ' + msg) : ''), true);
+                        } else {
+                            const msg = data.message;
+                            let list = '';
+                            if (Array.isArray(msg)) {
+                                list = msg.join(', ');
+                            } else {
+                                list = msg || '';
+                            }
+                            setStatus('Upload successful' + (list ? (': ' + list) : ''), false);
+                        }
+                    } else {
+                        // Fallback: use HTTP status + text response
+                        if (res.ok) {
+                            setStatus('Upload successful' + (text ? (': ' + text) : ''), false);
+                        } else {
+                            setStatus('Upload failed' + (text ? (': ' + text) : ''), true);
+                        }
+                    }
+                }).catch(err => {
+                    setStatus('Upload error: ' + (err && err.message ? err.message : err), true);
+                });
+            }
+
+            // clicking the dropzone opens the file picker
+            dropzone.addEventListener('click', function(e){
+                fileInput.click();
+            });
+
+            // file input changed
+            fileInput.addEventListener('change', function(e){
+                uploadFiles(e.target.files);
+                // clear selection so same file can be selected again if needed
+                fileInput.value = '';
+            });
+
+            // Drag & drop handlers
+            ['dragenter','dragover'].forEach(evt => {
+                dropzone.addEventListener(evt, function(e){
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropzone.classList.add('dragover');
+                });
+            });
+            ['dragleave','dragend','drop'].forEach(evt => {
+                dropzone.addEventListener(evt, function(e){
+                    e.preventDefault();
+                    e.stopPropagation();
+                    dropzone.classList.remove('dragover');
+                });
+            });
+
+            dropzone.addEventListener('drop', function(e){
+                const dt = e.dataTransfer;
+                if(dt && dt.files && dt.files.length){
+                    uploadFiles(dt.files);
+                }
+            });
+
+            // keyboard accessibility: Enter or Space opens file picker
+            dropzone.addEventListener('keydown', function(e){
+                if(e.key === 'Enter' || e.key === ' '){
+                    e.preventDefault();
+                    fileInput.click();
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

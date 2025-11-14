@@ -7,12 +7,16 @@ import bcrypt
 import os
 import io
 from functools import lru_cache
+from werkzeug.utils import secure_filename
+import secrets
 
 load_dotenv()
 
 client_id = os.getenv("AZURE_CLIENT_ID")
 tenant_id = os.getenv("AZURE_TENANT_ID")
-scopes = ["User.Read", "Files.Read"]
+scopes = ["User.Read", "Files.Read", "Files.ReadWrite"]
+
+dropbox_name = os.getenv("DROPBOX_NAME", "Dropbox")
 
 app = Flask(__name__)
 acl = ACL.from_yaml(open("rules.yml", "r", encoding="utf-8"))
@@ -67,6 +71,49 @@ def get_principal():
         pass
 
     return acl.get_group("everyone")
+
+@app.route("/_/upload", methods=["POST"])
+def upload_file():
+    principal = get_principal()
+    if principal == None or type(principal) == Group:
+        return {"error": True, "message": "Forbidden"}
+    
+    if principal not in acl.get_group("dropbox").get_members():
+        return {"error": True, "message": "Forbidden"}
+
+    files = request.files.getlist("file")
+
+    if not files:
+        return {"error": True, "message": "No files found"}
+
+    try:
+        parent = client.get_root()
+        parent_id = parent.id
+    except Exception:
+        return abort(500)
+
+    uploaded = []
+
+    for f in files:
+        original = secure_filename(f.filename or "untitled")
+        suffix = secrets.token_hex(2)  # 4 hex chars
+        username = principal.name if hasattr(principal, 'name') else 'anonymous'
+        target_name = f"{username}_{suffix}_{original}"
+
+        url = f"{client._graph_base}/me/drive/items/{parent_id}:/{dropbox_name}/{target_name}:/content"
+
+        try:
+            resp = client._session.put(url, data=f.read())
+            resp.raise_for_status()
+            uploaded.append(target_name)
+        except Exception as e:
+            return Response(str(e), status=502)
+
+    return {"error": False, "message": uploaded}, 201
+
+@app.route("/dropbox")
+def dropbox():
+    return render_template("dropbox.html")
 
 @app.route("/auth")
 def auth():
