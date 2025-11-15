@@ -12,7 +12,30 @@ OneDrive Proxy is a proxy service that allows you to make OneDrive file download
 
 ## Setup
 
+
+### Installation
+
+- **Prerequisites**: `docker` and `docker compose` installed.
+
+```powershell
+docker compose up -d
+```
+
+- **Retrieve the device-code link**: the service uses the Device Code flow to authenticate with OneDrive. If no authentication is cached, the application will start the device code login at startup and print the authentication instructions to the logs. Open the logs to get the URL and code to enter:
+
+```powershell
+docker compose logs -f
+```
+
+Look for a log line like `No valid token in cache. Starting device code login...` followed by the message from the Azure library that contains the URL to visit and the code to enter. After entering the code on the Microsoft website, the logs will show `Token saved to cache.` and the service will be able to access your OneDrive even after restarts.
+
+
+### Rules
+
 There are two config files that you need to modify before running this. The first one is `.env` (from `example.env`) where you need to put your OneDrive authentication credentials. The other is `rules.yml` (from `rules.example.yml`) which contains rules on who can access what.
+
+<details>
+<summary>Click to view more</summary>
 
 ```yaml
 users:
@@ -34,6 +57,7 @@ rules:
     pattern: "\\/public(\\/[a-zA-Z0-9_-]+\\.[a-zA-Z0-9]+)?"
 ```
 
+
 ### Groups
 A group is a collection of multiple users (e.g. `admins`, `archive-team`). There are also special groups like `everyone` which includes all users (logged in or not), `logged` which includes only authenticated users and the `dropbox` group have access to the dropbox
 
@@ -45,3 +69,5 @@ Each rule has 3 values:
 - permit: Can be `ALLOW` or `DENY`. You can allow a user to see a folder but deny access to one of its children.
 - principal: Should start with `user:` or `group:`. It describes who the rule is for.
 - pattern: Every file matching this regex pattern will be affected by the rule.
+
+</details>
