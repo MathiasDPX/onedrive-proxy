@@ -1,0 +1,12 @@
+services:
+  web:
+    image: mathiasdpx/onedrive-proxy
+    container_name: onedrive-proxy
+    restart: unless-stopped
+
+    ports:
+      - "8080:80"
+
+    volumes:
+      - ./rules.yml:/app/rules.yml
+      - ./.env:/app/.env

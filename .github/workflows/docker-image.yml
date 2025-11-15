@@ -1,0 +1,25 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Login to Docker Hub
+      run: echo "${{ secrets.DOCKERHUB_PAT }}" | docker login -u "${{ secrets.DOCKERHUB_USER }}" --password-stdin
+
+    - name: Build Docker image
+      run: |
+        docker build . -t ${{ secrets.DOCKERHUB_USER }}/onedrive-proxy:${{ github.sha }}
+        docker tag ${{ secrets.DOCKERHUB_USER }}/onedrive-proxy:${{ github.sha }} ${{ secrets.DOCKERHUB_USER }}/onedrive-proxy:latest
+
+    - name: Push Docker image
+      run: |
+        docker push ${{ secrets.DOCKERHUB_USER }}/onedrive-proxy:${{ github.sha }}
+        docker push ${{ secrets.DOCKERHUB_USER }}/onedrive-proxy:latest
