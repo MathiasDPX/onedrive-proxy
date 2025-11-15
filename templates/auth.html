@@ -8,6 +8,7 @@
 <input type="text" id="username" placeholder="username"><br>
 <input type="text" id="password" placeholder="password"><br>
 <button id="save-btn">Save</button>
+<button id="delete-btn">Logout</button>
 
 <script>
     function setCookie(name, value, days) {
@@ -42,6 +43,13 @@
             document.getElementById("password").value = savedPass || "";
         }
     });
+
+    document.getElementById("delete-btn").addEventListener("click", () => {
+        setCookie("Authorization", "", -1);
+        document.getElementById("username").value = "";
+        document.getElementById("password").value = "";
+        alert("Logged out!");
+    })
 
     // Save when click
     document.getElementById("save-btn").addEventListener("click", () => {
