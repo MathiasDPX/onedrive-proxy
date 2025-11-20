@@ -41,7 +41,14 @@ app.jinja_env.filters["human_filesize"] = human_filesize
 def inject_globals():
     principal = get_principal()
     principal_id = principal.name if hasattr(principal, 'name') else "everyone"
-    can_expose = can_access_cached(principal_id, request.path)
+    
+    # Get parent path
+    path = request.path.strip('/')
+    if path == '':
+        can_expose = False
+    else:
+        parent_path = '/'.join(path.split('/')[:-1])
+        can_expose = can_access_cached(principal_id, parent_path)
 
     return dict(can_expose=can_expose)
 
