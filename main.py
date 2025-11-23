@@ -1,4 +1,4 @@
-from flask import Flask, abort, render_template, request, Response
+from flask import Flask, abort, render_template, request, Response, send_file
 from dotenv import load_dotenv
 from utils.whitelist import *
 from utils.onedrive import *
@@ -25,11 +25,9 @@ cached_passwords = {}
 client = Client(scopes, client_id, tenant_id)
 
 try:
-    if not client.load_token_from_cache():
-        print("No valid token in cache. Starting device code login...")
-        client.devicecode_login()
-        client.save_token_to_cache()
-        print("Token saved to cache.")
+    print("Authenticating...")
+    client.devicecode_login()
+    print("Authentication successful.")
 except Exception as e:
     print(f"Authentication failed: {e}")
     exit(1)
@@ -118,11 +116,15 @@ def upload_file():
 
     return {"error": False, "message": uploaded}, 201
 
-@app.route("/dropbox")
+@app.route("/favicon.ico")
+def favicon():
+    return send_file("static/favicon.ico")
+
+@app.route("/_/dropbox")
 def dropbox():
     return render_template("dropbox.html")
 
-@app.route("/auth")
+@app.route("/_/auth")
 def auth():
     return render_template("auth.html")
 
@@ -147,6 +149,7 @@ def index(path: str):
         else:
             file = client.get_file_by_path(path)
     except Exception as e:
+        print(e)
         return abort(404)
 
     if file.is_folder:
