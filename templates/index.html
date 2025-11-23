@@ -15,7 +15,7 @@
     </thead>
     <tbody>
         {% if request.path != "/" %}
-        {% set parent_url = request.url.rsplit('/', 1)[0] %}
+        {% set parent_url = request.path.rsplit('/', 1)[0] %}
         {% if can_expose %}
         <tr>
             {# only add the parent dir link if it's accessible #}
