@@ -1,10 +1,9 @@
-from azure.identity import DeviceCodeCredential
+import msal
+import requests
+import os
+from datetime import datetime
 from typing import List
 from utils.formatters import *
-import requests
-import json
-import os
-from datetime import datetime, timedelta
 
 
 class File:
@@ -22,156 +21,114 @@ class File:
     @classmethod
     def from_request(cls, data):
         parent_ref = data.get("parentReference") or {}
-        if data.get("folder", None) == None:
-            is_folder = False
-        else:
-            is_folder = True
+        is_folder = "folder" in data
 
         inst = cls(
             data["name"],
             data["id"],
             data.get("size", 0),
-            convert_path(parent_ref.get("path", ""))+"/"+data["name"],
+            convert_path(parent_ref.get("path", "")) + "/" + data["name"],
             parent_ref.get("id"),
             is_folder,
             parse_date(data["createdDateTime"]),
             parse_date(data["lastModifiedDateTime"])
         )
 
-        if data.get("file") != None:
-            inst.mimetype = data.get("file", {}).get("mimetype", "application/octet-stream")
+        if data.get("file"):
+            inst.mimetype = data["file"].get("mimetype", "application/octet-stream")
 
         return inst
 
+
 class Client:
-    def __init__(self,
-                 scopes: List[str],
-                 client_id: str,
-                 tenant_id: str,
-                 graph_base: str = "https://graph.microsoft.com/v1.0"
-                ):
+    def __init__(self, scopes: List[str], client_id: str, tenant_id: str,
+                 graph_base="https://graph.microsoft.com/v1.0"):
+
         self.scopes = scopes
         self.client_id = client_id
         self.tenant_id = tenant_id
-        
-        self._graph_base = graph_base
-        self._session = requests.session()
-        self.token_cache_file = ".token_cache.json"
-    
-    def devicecode_login(self):
-        credential = DeviceCodeCredential(self.client_id, tenant_id=self.tenant_id)
-        token = credential.get_token(*self.scopes).token
-        self._set_token(token)
-        # Store token for caching (DeviceCodeCredential returns access_token directly)
-        self.token = {
-            'access_token': token,
-            'expires_at': (datetime.now() + timedelta(hours=1)).timestamp()
-        }
+        self.graph_base = graph_base
+        self.session = requests.Session()
+
+        # MSAL token cache
+        self.cache_path = ".token_cache.json"
+        self.token_cache = msal.SerializableTokenCache()
+
+        if os.path.exists(self.cache_path):
+            with open(self.cache_path, "r") as f:
+                self.token_cache.deserialize(f.read())
+
+        self.app = msal.PublicClientApplication(
+            self.client_id,
+            authority=f"https://login.microsoftonline.com/{self.tenant_id}",
+            token_cache=self.token_cache
+        )
+
 
     def _set_token(self, token):
-        if isinstance(token, str):
-            _headers = {"Authorization": f"Bearer {token}"}
-        else:
-            _headers = {"Authorization": f"Bearer {token.get('access_token', token)}"}
-        self._session.headers.update(_headers)
+        self.session.headers.update({"Authorization": f"Bearer {token}"})
 
-    def save_token_to_cache(self):
-        """Sauvegarde le token actuel dans un fichier cache"""
-        if hasattr(self, 'token') and self.token:
-            cache_data = {
-                'access_token': self.token.get('access_token'),
-                'refresh_token': self.token.get('refresh_token'),
-                'expires_at': self.token.get('expires_at'),
-                'token_type': self.token.get('token_type')
-            }
-            with open(self.token_cache_file, 'w') as f:
-                json.dump(cache_data, f)
-    
-    def load_token_from_cache(self):
-        """Charge le token depuis le cache s'il existe et est valide"""
-        if not os.path.exists(self.token_cache_file):
-            return False
-        
-        try:
-            with open(self.token_cache_file, 'r') as f:
-                cache_data = json.load(f)
-            
-            # Vérifie si le token n'est pas expiré
-            expires_at = cache_data.get('expires_at')
-            if expires_at and datetime.now().timestamp() < expires_at - 300:  # 5 min de marge
-                self.token = cache_data
-                self._set_token(cache_data['access_token'])
-                return True
-            
-            # Essaie de rafraîchir le token s'il est expiré
-            if cache_data.get('refresh_token'):
-                return self.refresh_token(cache_data['refresh_token'])
-            
-        except Exception as e:
-            print(f"Erreur lors du chargement du cache: {e}")
-        
-        return False
-    
-    def refresh_token(self, refresh_token):
-        """Rafraîchit le token d'accès avec le refresh token"""
-        try:
-            token_url = f"https://login.microsoftonline.com/{self.tenant_id}/oauth2/v2.0/token"
-            
-            payload = {
-                'client_id': self.client_id,
-                'refresh_token': refresh_token,
-                'grant_type': 'refresh_token',
-                'scope': ' '.join(self.scopes)
-            }
-            
-            resp = requests.post(token_url, data=payload)
-            resp.raise_for_status()
-            
-            token_data = resp.json()
-            self.token = token_data
-            self._set_token(token_data['access_token'])
-            self.save_token_to_cache()
-            return True
-            
-        except Exception as e:
-            print(f"Erreur lors du rafraîchissement du token: {e}")
-            return False
-    
-    def get_content(self, item_id) -> bytes:
-        url = f"{self._graph_base}/me/drive/items/{item_id}/content"
-        return self._session.get(url).content
+    def _save_cache(self):
+        with open(self.cache_path, "w") as f:
+            f.write(self.token_cache.serialize())
+
+    def devicecode_login(self):
+        accounts = self.app.get_accounts()
+        if accounts:
+            result = self.app.acquire_token_silent(self.scopes, account=accounts[0])
+            if result and "access_token" in result:
+                self._set_token(result["access_token"])
+                self._save_cache()
+                return result
+
+
+        flow = self.app.initiate_device_flow(scopes=self.scopes)
+        if "user_code" not in flow:
+            raise Exception("Impossible d'initialiser le Device Code Flow")
+
+        print(flow["message"])
+
+        result = self.app.acquire_token_by_device_flow(flow)
+
+        if "access_token" not in result:
+            raise Exception("Authentication failed: %s" % result.get("error_description"))
+
+        self._set_token(result["access_token"])
+        self._save_cache()
+
+        return result
+
 
     def get_children(self, item_id="root") -> List[File]:
         if item_id == "root":
-            url = f"{self._graph_base}/me/drive/root/children"
+            url = f"{self.graph_base}/me/drive/root/children"
         else:
-            url = f"{self._graph_base}/me/drive/items/{item_id}/children"
+            url = f"{self.graph_base}/me/drive/items/{item_id}/children"
 
-        resp = self._session.get(url)
-        resp.raise_for_status()
-        data = resp.json()
-        
-        return [File.from_request(file) for file in data.get("value", [])]
-    
+        res = self.session.get(url)
+        res.raise_for_status()
+        return [File.from_request(item) for item in res.json().get("value", [])]
+
     def get_file_by_id(self, item_id) -> File:
-        url = f"{self._graph_base}/me/drive/items/{item_id}"
-        resp = self._session.get(url)
-        resp.raise_for_status()
-        data = resp.json()
-        return File.from_request(data)
-
+        url = f"{self.graph_base}/me/drive/items/{item_id}"
+        res = self.session.get(url)
+        res.raise_for_status()
+        return File.from_request(res.json())
 
     def get_file_by_path(self, path) -> File:
-        url = f"{self._graph_base}/me/drive/root:/{path}"
-        resp = self._session.get(url)
-        resp.raise_for_status()
-        data = resp.json()
-
-        return File.from_request(data)
+        url = f"{self.graph_base}/me/drive/root:/{path}"
+        res = self.session.get(url)
+        res.raise_for_status()
+        return File.from_request(res.json())
 
     def get_root(self) -> File:
-        url = f"{self._graph_base}/me/drive/root"
-        resp = self._session.get(url)
-        resp.raise_for_status()
-        data = resp.json()
-        return File.from_request(data)
+        url = f"{self.graph_base}/me/drive/root"
+        res = self.session.get(url)
+        res.raise_for_status()
+        return File.from_request(res.json())
+
+    def get_content(self, item_id) -> bytes:
+        url = f"{self.graph_base}/me/drive/items/{item_id}/content"
+        res = self.session.get(url)
+        res.raise_for_status()
+        return res.content
