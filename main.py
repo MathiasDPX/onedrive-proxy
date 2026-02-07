@@ -1,4 +1,4 @@
-from flask import Flask, abort, render_template, request, Response, send_file
+from flask import Flask, abort, render_template, request, Response, send_file, stream_with_context
 from dotenv import load_dotenv
 from utils.whitelist import *
 from utils.onedrive import *
@@ -9,6 +9,8 @@ import io
 from functools import lru_cache
 from werkzeug.utils import secure_filename
 import secrets
+import requests
+from mimetypes import guess_type
 
 load_dotenv()
 
@@ -134,6 +136,53 @@ def can_access_cached(principal_id: str, path: str):
     principal = acl.get_group(principal_id) if principal_id == "everyone" else acl.get_user(principal_id)
     return acl.can_access(principal, path)
 
+def parse_range_header(range_header: str, file_size: int):
+    """Parse HTTP Range header and return (start, end) tuple"""
+    if not range_header or not range_header.startswith("bytes="):
+        return 0, file_size - 1
+    
+    try:
+        range_spec = range_header[6:]  # remove "bytes="
+        if "-" not in range_spec:
+            return 0, file_size - 1
+        
+        start_str, end_str = range_spec.split("-", 1)
+        start = int(start_str) if start_str else 0
+        end = int(end_str) if end_str else file_size - 1
+        
+        # ensure valid range
+        start = max(0, min(start, file_size - 1))
+        end = max(start, min(end, file_size - 1))
+        
+        return start, end
+    except:
+        return 0, file_size - 1
+
+def stream_file_content(file_id: str, start: int = 0, end: int = None, chunk_size: int = 8192):
+    """Stream file content in chunks from OneDrive with Range support"""
+    try:
+        url = f"{client._graph_base}/me/drive/items/{file_id}/content"
+        headers = client._session.headers.copy()
+        
+        # Add Range header if seeking
+        if start > 0 or end:
+            range_header = f"bytes={start}"
+            if end:
+                range_header += f"-{end}"
+            else:
+                range_header += "-"
+            headers["Range"] = range_header
+        
+        response = requests.get(url, headers=headers, stream=True, timeout=30)
+        response.raise_for_status()
+        
+        for chunk in response.iter_content(chunk_size=chunk_size):
+            if chunk:
+                yield chunk
+    except Exception as e:
+        print(f"Streaming error: {e}")
+        yield f"Error streaming file: {str(e)}".encode()
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def index(path: str):
@@ -161,10 +210,41 @@ def index(path: str):
         )
     
     else:
-        content = io.BytesIO(client.get_content(file.id))
-        response = Response(content.getvalue(), mimetype=file.mimetype)
+        # Determine mimetype
+        mimetype = file.mimetype if file.mimetype and file.mimetype != "application/octet-stream" else None
+        if not mimetype:
+            mimetype, _ = guess_type(file.name)
+        if not mimetype:
+            mimetype = "application/octet-stream"
+        
+        file_size = file.size if hasattr(file, 'size') and file.size else 0
+        range_header = request.headers.get("Range")
+        
+        # Parse range request for seeking
+        if range_header and file_size > 0:
+            start, end = parse_range_header(range_header, file_size)
+            content_length = end - start + 1
+            
+            response = Response(
+                stream_with_context(stream_file_content(file.id, start, end)),
+                mimetype=mimetype,
+                status=206
+            )
+            response.headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+            response.headers["Content-Length"] = str(content_length)
+        else:
+            response = Response(
+                stream_with_context(stream_file_content(file.id)),
+                mimetype=mimetype,
+                status=200
+            )
+            if file_size > 0:
+                response.headers["Content-Length"] = str(file_size)
+        
         response.headers["Content-Disposition"] = f"attachment; filename={file.name}"
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Accept-Ranges"] = "bytes"
+        
         return response
 
 if __name__ == "__main__":
