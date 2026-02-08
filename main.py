@@ -183,6 +183,17 @@ def stream_file_content(file_id: str, start: int = 0, end: int = None, chunk_siz
         print(f"Streaming error: {e}")
         yield f"Error streaming file: {str(e)}".encode()
 
+def create_m3u8(files:list[File]):
+    lines = []
+    
+    lines.append("#EXTM3U")
+    lines.append("")
+    for file in files:
+        lines.append(f"#EXTINF:-1,{os.path.basename(file.path)}")
+        lines.append(f"{file.path}")
+        
+    return "\n".join(lines)
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def index(path: str):
@@ -203,6 +214,10 @@ def index(path: str):
 
     if file.is_folder:
         files = [file for file in client.get_children(file.id) if can_access_cached(principal_id, file.path)]
+        
+        if "libvlc" in request.headers.get('User-Agent', '').lower():
+            return create_m3u8(files)
+        
         return render_template(
             "index.html",
             path=path,
