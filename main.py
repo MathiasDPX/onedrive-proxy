@@ -161,6 +161,9 @@ def parse_range_header(range_header: str, file_size: int):
 def stream_file_content(file_id: str, start: int = 0, end: int = None, chunk_size: int = 8192):
     """Stream file content in chunks from OneDrive with Range support"""
     try:
+        # Ensure token is valid before streaming
+        client._ensure_valid_token()
+        
         url = f"{client._graph_base}/me/drive/items/{file_id}/content"
         headers = client._session.headers.copy()
         
