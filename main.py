@@ -11,6 +11,7 @@ from werkzeug.utils import secure_filename
 import secrets
 import requests
 from mimetypes import guess_type
+from urllib.parse import quote
 
 load_dotenv()
 
@@ -259,7 +260,8 @@ def index(path: str):
             if file_size > 0:
                 response.headers["Content-Length"] = str(file_size)
         
-        response.headers["Content-Disposition"] = f"attachment; filename={file.name}"
+        # Properly encode filename in Content-Disposition header to handle special characters
+        response.headers["Content-Disposition"] = f"attachment; filename*=UTF-8''{quote(file.name)}"
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         response.headers["Accept-Ranges"] = "bytes"
         

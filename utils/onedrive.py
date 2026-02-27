@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 from typing import List
 from utils.formatters import *
+from urllib.parse import quote
 
 
 class File:
@@ -163,7 +164,9 @@ class Client:
 
     def get_file_by_path(self, path) -> File:
         safe_path = path.strip("/")
-        url = f"{self.graph_base}/me/drive/root:/{safe_path}"
+        # URL-encode each path component separately to preserve slashes
+        encoded_path = "/".join(quote(part, safe="") for part in safe_path.split("/"))
+        url = f"{self.graph_base}/me/drive/root:/{encoded_path}"
         res = self._request("get", url)
         return File.from_request(res.json())
 
